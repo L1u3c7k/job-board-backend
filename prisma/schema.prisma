@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  EMPLOYER
+  CANDIDATE
+  ADMIN
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWING
+  SHORTLISTED
+  REJECTED
+  ACCEPTED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(CANDIDATE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 1:1 Optional relations based on role
+  employer  Employer?
+  candidate Candidate?
+}
+
+model Employer {
+  id          String  @id @default(uuid())
+  companyName String
+  website     String?
+  bio         String?
+
+  // Relation to User
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 1:Many relation to Job Listings
+  jobListings JobListing[]
+}
+
+model Candidate {
+  id        String  @id @default(uuid())
+  firstName String
+  lastName  String
+  phone     String?
+
+  // Relation to User
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations to Resumes and Applications
+  resumes      Resume[]
+  applications JobApplication[]
+}
+
+model JobListing {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  location    String
+  salaryRange String?
+  isRemote    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relation to Employer
+  employerId String
+  employer   Employer @relation(fields: [employerId], references: [id], onDelete: Cascade)
+
+  // Relation to Applications
+  applications JobApplication[]
+}
+
+model Resume {
+  id         String   @id @default(uuid())
+  fileName   String
+  fileUrl    String
+  uploadedAt DateTime @default(now())
+
+  // Relation to Candidate
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  // Relation to Applications (A specific resume used for an application)
+  applications JobApplication[]
+}
+
+model JobApplication {
+  id        String            @id @default(uuid())
+  status    ApplicationStatus @default(PENDING)
+  appliedAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  // Relation to Job
+  jobListingId String
+  jobListing   JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+
+  // Relation to Candidate
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  // Relation to specific Resume used
+  resumeId String
+  resume   Resume @relation(fields: [resumeId], references: [id])
+
+  @@unique([jobListingId, candidateId]) // Prevents double application to the same job
+}
