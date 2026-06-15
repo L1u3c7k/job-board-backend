@@ -61,8 +61,11 @@ export class AuthService {
     const user = await this.userService.findOne(userId)
     if (!user || !user.hashedRefreshToken) { throw new UnauthorizedException("Invalid refresh token") }
 
-    const verifyRefreshToken = await argon2.verify(refreshToken, user.hashedRefreshToken)
-    if!verifyRefreshToken) throw new UnauthorizedException("invalid refresh token")
+    if (!user || !user.hashedRefreshToken) {
+    throw new UnauthorizedException('Access Denied: Invalid session or logged out.');
+    }
+    const verifyRefreshToken = await argon2.verify(user.hashedRefreshToken,refreshToken)
+    if(!verifyRefreshToken) throw new UnauthorizedException("invalid refresh token")
     return { id: userId }
   }
 
