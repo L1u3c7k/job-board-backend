@@ -33,6 +33,7 @@ model User {
   role      Role     @default(CANDIDATE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  hashedRefreshToken String?
 
   // 1:1 Optional relations based on role
   employer  Employer?

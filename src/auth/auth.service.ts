@@ -5,6 +5,7 @@ import { HashService } from './hashService.service';
 import { JwtService } from '@nestjs/jwt';
 import refreshJwtConfig from './config/refresh-jwt.config';
 import type { ConfigType } from '@nestjs/config';
+import * as argon2 from "argon2"
 
 
 
@@ -12,10 +13,10 @@ import type { ConfigType } from '@nestjs/config';
 export class AuthService {
 
   constructor(
-    private readonly userService: UserService, 
-    private readonly hashService: HashService, 
-    private readonly jwtService: JwtService, 
-    @Inject(refreshJwtConfig.KEY) private refreshTokenConfig:ConfigType<typeof refreshJwtConfig>) { }
+    private readonly userService: UserService,
+    private readonly hashService: HashService,
+    private readonly jwtService: JwtService,
+    @Inject(refreshJwtConfig.KEY) private refreshTokenConfig: ConfigType<typeof refreshJwtConfig>) { }
 
   async validateion(email: string, password: string): Promise<any> {
     const user = await this.userService.findByEmail(email);
@@ -30,21 +31,44 @@ export class AuthService {
     return { id: user.id };
   }
 
-  login(user: any) {
-    const payload = { sub: user.id };
-    const token = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(payload, this.refreshTokenConfig);
-    return {id:user.id,token: token,refresh_Token :refreshToken}
+  async login(user: any) {
+    // const payload = { sub: user.id };
+    // const token = this.jwtService.sign(payload);
+    // const refreshToken = this.jwtService.sign(payload, this.refreshTokenConfig);
+    const { accessToken, refreshToken } = await this.generateToken(user.id)
+    const hashedRefreshToken = await argon2.hash(refreshToken)
+    await this.userService.updateHashedRefreshToken(user.id, hashedRefreshToken)
+    return { id: user.id, access_token: accessToken, refresh_Token: refreshToken }
 
   }
-
-  refreshToken(userId:string){
-    const payload = { sub: userId };
-    const token = this.jwtService.sign(payload)
-    return {id:userId,token:token}
-    
+  async generateToken(userId: string) {
+    const payload = { sub: userId }
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload),
+      this.jwtService.signAsync(payload, this.refreshTokenConfig)
+    ])
+    return { accessToken, refreshToken }
   }
 
+  async refreshToken(user: any) {
+    const { accessToken, refreshToken } = await this.generateToken(user.id)
+    const hashedRefreshToken = await argon2.hash(refreshToken)
+    await this.userService.updateHashedRefreshToken(user.id, hashedRefreshToken)
+    return { id: user.id, access_token: accessToken, refresh_Token: refreshToken }
+
+  }
+  async validateRefreshToken(userId: string, refreshToken: string) {
+    const user = await this.userService.findOne(userId)
+    if (!user || !user.hashedRefreshToken) { throw new UnauthorizedException("Invalid refresh token") }
+
+    const verifyRefreshToken = await argon2.verify(refreshToken, user.hashedRefreshToken)
+    if!verifyRefreshToken) throw new UnauthorizedException("invalid refresh token")
+    return { id: userId }
+  }
+
+  async logout(userId: string) {
+    await this.userService.updateHashedRefreshToken(userId, null)
+  }
 
 
 }

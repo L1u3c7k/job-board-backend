@@ -44,6 +44,12 @@ export class UserService {
     return user;
 
   }
+  async updateHashedRefreshToken(userId:string,hashedRefreshToken:string | null){
+    return await this.prisma.user.update({
+    where: { id: userId },
+    data: { hashedRefreshToken }
+  })
+  }
 
   async findByEmail(email: string) {
     return await this.prisma.user.findUnique({
